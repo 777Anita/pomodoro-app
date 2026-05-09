@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>番茄钟</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --color-work: #e11d48;
+    --color-short-break: #10b981;
+    --color-long-break: #8b5cf6;
+    --bg: #0f0f1a;
+    --card: #1a1a2e;
+    --text: #f1f5f9;
+    --text-muted: #71717a;
+    --ring-bg: #27273d;
+    --radius: 16px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: 24px;
+    padding: 48px 40px 40px;
+    width: 400px;
+    max-width: 92vw;
+    text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+  }
+
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+
+  /* Mode tabs */
+  .modes {
+    display: flex;
+    gap: 8px;
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 36px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    padding: 10px 6px;
+    border: none;
+    border-radius: 9px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-muted);
+    background: transparent;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+  }
+
+  .mode-btn.active[data-mode="work"]   { background: var(--color-work);   color: #fff; }
+  .mode-btn.active[data-mode="short"]  { background: var(--color-short-break); color: #fff; }
+  .mode-btn.active[data-mode="long"]   { background: var(--color-long-break); color: #fff; }
+
+  .mode-btn:not(.active):hover { color: var(--text); }
+
+  /* Timer ring */
+  .timer-container {
+    position: relative;
+    width: 260px;
+    height: 260px;
+    margin: 0 auto 32px;
+  }
+
+  .timer-ring {
+    transform: rotate(-90deg);
+    width: 100%;
+    height: 100%;
+  }
+
+  .ring-bg {
+    fill: none;
+    stroke: var(--ring-bg);
+    stroke-width: 8;
+  }
+
+  .ring-progress {
+    fill: none;
+    stroke: var(--color-work);
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s linear, stroke 0.3s;
+  }
+
+  .time-display {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4.2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+
+  .btn {
+    border: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    border-radius: 100px;
+    padding: 14px 36px;
+    transition: all 0.15s;
+  }
+
+  .btn-start {
+    background: var(--color-work);
+    color: #fff;
+    font-size: 1.1rem;
+    padding: 16px 48px;
+    box-shadow: 0 0 20px rgba(225,29,72,0.35);
+  }
+  .btn-start:hover { transform: scale(1.04); }
+
+  .btn-icon {
+    background: transparent;
+    color: var(--text-muted);
+    padding: 10px;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s;
+  }
+  .btn-icon:hover { color: var(--text); background: var(--ring-bg); }
+
+  /* Session counter */
+  .sessions {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+  }
+  .sessions span { font-weight: 700; color: var(--text); }
+  .dots { margin-top: 8px; display: flex; justify-content: center; gap: 8px; }
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--ring-bg);
+    transition: background 0.3s;
+  }
+  .dot.filled { background: var(--color-work); }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>番茄钟</h1>
+
+  <div class="modes">
+    <button class="mode-btn active" data-mode="work" onclick="setMode('work')">专注</button>
+    <button class="mode-btn" data-mode="short" onclick="setMode('short')">短休息</button>
+    <button class="mode-btn" data-mode="long" onclick="setMode('long')">长休息</button>
+  </div>
+
+  <div class="timer-container">
+    <svg class="timer-ring" viewBox="0 0 100 100">
+      <circle class="ring-bg" cx="50" cy="50" r="45"/>
+      <circle class="ring-progress" id="ring" cx="50" cy="50" r="45"
+              stroke-dasharray="282.74" stroke-dashoffset="0"/>
+    </svg>
+    <div class="time-display" id="time">25:00</div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-icon" onclick="reset()" title="重置">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 1 10 7 10"/><path d="M3.5 18A9 9 0 1 0 2 12"/>
+      </svg>
+    </button>
+
+    <button class="btn btn-start" id="btnStart" onclick="toggleTimer()">开始</button>
+
+    <button class="btn-icon" onclick="skip()" title="跳过">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="sessions">
+    已完成 <span id="count">0</span> 个番茄
+    <div class="dots" id="dots"></div>
+  </div>
+</div>
+
+<script>
+const CIRCUMFERENCE = 2 * Math.PI * 45; // ~282.74
+
+const MODES = {
+  work:  { label: '专注',   minutes: 25, color: '#e11d48' },
+  short: { label: '短休息', minutes: 5,  color: '#10b981' },
+  long:  { label: '长休息', minutes: 15, color: '#8b5cf6' },
+};
+
+let mode = 'work';
+let totalSeconds = MODES[mode].minutes * 60;
+let remaining = totalSeconds;
+let intervalId = null;
+let pomodoroCount = 0;
+
+const ring     = document.getElementById('ring');
+const timeEl   = document.getElementById('time');
+const btnStart = document.getElementById('btnStart');
+const countEl  = document.getElementById('count');
+const dotsEl   = document.getElementById('dots');
+
+ring.style.strokeDasharray = CIRCUMFERENCE;
+ring.style.strokeDashoffset = '0';
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+function updateDisplay() {
+  timeEl.textContent = formatTime(remaining);
+  const fraction = remaining / totalSeconds;
+  ring.style.strokeDashoffset = CIRCUMFERENCE * (1 - fraction);
+  ring.style.stroke = MODES[mode].color;
+  btnStart.style.background = MODES[mode].color;
+  btnStart.style.boxShadow = `0 0 20px ${MODES[mode].color}55`;
+  document.title = `${formatTime(remaining)} - 番茄钟`;
+}
+
+function setMode(newMode) {
+  if (intervalId) clearInterval(intervalId);
+  intervalId = null;
+  mode = newMode;
+  totalSeconds = MODES[mode].minutes * 60;
+  remaining = totalSeconds;
+
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+
+  btnStart.textContent = '开始';
+  updateDisplay();
+}
+
+function toggleTimer() {
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+    btnStart.textContent = '继续';
+  } else {
+    intervalId = setInterval(tick, 1000);
+    btnStart.textContent = '暂停';
+  }
+}
+
+function tick() {
+  if (remaining <= 0) return;
+  remaining--;
+  updateDisplay();
+
+  if (remaining === 0) {
+    clearInterval(intervalId);
+    intervalId = null;
+    btnStart.textContent = '开始';
+    onTimerEnd();
+  }
+}
+
+function onTimerEnd() {
+  playBeep();
+  notify();
+
+  if (mode === 'work') {
+    pomodoroCount++;
+    countEl.textContent = pomodoroCount;
+    renderDots();
+    setMode(pomodoroCount % 4 === 0 ? 'long' : 'short');
+  } else {
+    setMode('work');
+  }
+}
+
+function reset() {
+  if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  remaining = totalSeconds;
+  btnStart.textContent = '开始';
+  updateDisplay();
+}
+
+function skip() {
+  remaining = 0;
+  updateDisplay();
+  if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  btnStart.textContent = '开始';
+  onTimerEnd();
+}
+
+function renderDots() {
+  const perRow = 8;
+  const rows = Math.ceil(Math.max(pomodoroCount, 1) / perRow);
+  let html = '';
+  for (let r = 0; r < rows; r++) {
+    html += '<div class="dots" style="margin-top:6px">';
+    for (let c = 0; c < perRow; c++) {
+      const i = r * perRow + c;
+      if (i < pomodoroCount) html += '<div class="dot filled"></div>';
+      else if (i < Math.max(pomodoroCount + (4 - pomodoroCount % 4) % 4, 4)) html += '<div class="dot"></div>';
+    }
+    html += '</div>';
+  }
+  dotsEl.innerHTML = html || '<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+}
+
+function playBeep() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  [800, 600, 1000].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.2);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.2 + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime + i * 0.2);
+    osc.stop(ctx.currentTime + i * 0.2 + 0.3);
+  });
+}
+
+function notify() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(mode === 'work' ? '🍅 番茄完成！休息一下吧' : '⏰ 休息结束，开始新的番茄吧');
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then(p => {
+      if (p === 'granted') notify();
+    });
+  }
+}
+
+// Init
+Notification.requestPermission();
+updateDisplay();
+renderDots();
+</script>
+</body>
+</html>
